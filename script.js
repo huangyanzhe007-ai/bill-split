@@ -1,5 +1,7 @@
 const STORAGE_KEY = 'billSplitterMobileState';
 const SCENES = ['外卖', '餐饮', '奶茶', '交通', '住宿', '门票', '团购', '购物', '其他'];
+const DEFAULT_PARTICIPANTS = ['H女士', 'Daisy'];
+const MAX_PARTICIPANTS = 4;
 const MONEY_TEXT = '(?:\\d+(?:\\.\\d+)?|[零〇一二两俩三四五六七八九十百千万壹贰叁肆伍陆柒捌玖拾佰仟萬]+(?:[块元圆](?:[零〇一二两俩三四五六七八九十壹贰叁肆伍陆柒捌玖]+(?:[角毛](?:[零〇一二两俩三四五六七八九十壹贰叁肆伍陆柒捌玖]+分?)?)?)?)?(?:[零〇一二两俩三四五六七八九十壹贰叁肆伍陆柒捌玖]+分)?|[零〇一二两俩三四五六七八九十壹贰叁肆伍陆柒捌玖]+[角毛][零〇一二两俩三四五六七八九十壹贰叁肆伍陆柒捌玖]*分?)';
 
 const state = {
@@ -15,6 +17,7 @@ const els = {
   detailScreen: $('detail-screen'),
   newTripName: $('new-trip-name'),
   createTripButton: $('create-trip-button'),
+  tripRoleInputs: ['trip-role-1', 'trip-role-2', 'trip-role-3', 'trip-role-4'].map($),
   tripList: $('trip-list'),
   tripCount: $('trip-count'),
   backToTrips: $('back-to-trips'),
@@ -22,13 +25,9 @@ const els = {
   shareTripButton: $('share-trip-button'),
   settlementTitle: $('settlement-title'),
   settlementSubtitle: $('settlement-subtitle'),
-  hNet: $('h-net'),
-  daisyNet: $('daisy-net'),
-  hBreakdown: $('h-breakdown'),
-  daisyBreakdown: $('daisy-breakdown'),
+  balanceStrip: $('balance-strip'),
   tripTotal: $('trip-total'),
-  hTotal: $('h-total'),
-  daisyTotal: $('daisy-total'),
+  totalRow: $('total-row'),
   sentenceInput: $('sentence-input'),
   parseSentenceButton: $('parse-sentence-button'),
   ocrImageInput: $('ocr-image-input'),
@@ -44,8 +43,7 @@ const els = {
   entryDescription: $('entry-description'),
   entryAmount: $('entry-amount'),
   entryPayer: $('entry-payer'),
-  entryShareH: $('entry-share-h'),
-  entryShareDaisy: $('entry-share-daisy'),
+  shareFields: $('share-fields'),
   entryNote: $('entry-note'),
   entrySource: $('entry-source'),
   formMessage: $('form-message'),
@@ -188,11 +186,17 @@ function loadState() {
     state.currentTripId = null;
   }
 
+  state.trips = state.trips.map((trip) => ({
+    ...trip,
+    participants: normalizeParticipants(trip.participants),
+  }));
+
   if (state.trips.length === 0) {
     const sampleId = uid('trip');
     state.trips.push({
       id: sampleId,
       name: '6月8日周末游玩',
+      participants: DEFAULT_PARTICIPANTS,
       createdAt: new Date().toISOString(),
     });
     state.currentTripId = sampleId;
@@ -208,24 +212,86 @@ function currentTrip() {
   return state.trips.find((trip) => trip.id === state.currentTripId) || null;
 }
 
+function normalizeParticipants(participants) {
+  const names = (Array.isArray(participants) ? participants : DEFAULT_PARTICIPANTS)
+    .map((name) => String(name || '').trim())
+    .filter(Boolean);
+  const unique = [];
+  names.forEach((name) => {
+    if (!unique.includes(name) && unique.length < MAX_PARTICIPANTS) unique.push(name);
+  });
+  return unique.length ? unique : DEFAULT_PARTICIPANTS;
+}
+
+function getTripParticipants(tripId = state.currentTripId) {
+  const trip = state.trips.find((item) => item.id === tripId);
+  return normalizeParticipants(trip?.participants);
+}
+
+function getNewTripParticipants() {
+  return normalizeParticipants(els.tripRoleInputs.map((input) => input.value));
+}
+
+function getExpenseShares(expense, participants = getTripParticipants(expense.tripId)) {
+  if (expense.shares && typeof expense.shares === 'object') {
+    return participants.reduce((shares, name) => {
+      shares[name] = toNumber(expense.shares[name]);
+      return shares;
+    }, {});
+  }
+
+  return participants.reduce((shares, name) => {
+    if (name === 'H女士') shares[name] = toNumber(expense.shareH);
+    else if (name === 'Daisy') shares[name] = toNumber(expense.shareDaisy);
+    else shares[name] = 0;
+    return shares;
+  }, {});
+}
+
 function summarize(tripId = state.currentTripId) {
+  const participants = getTripParticipants(tripId);
   const expenses = state.expenses.filter((expense) => expense.tripId === tripId);
   const total = expenses.reduce((sum, item) => sum + item.amount, 0);
-  const hPaid = expenses.reduce((sum, item) => sum + (item.payer === 'H女士' ? item.amount : 0), 0);
-  const daisyPaid = expenses.reduce((sum, item) => sum + (item.payer === 'Daisy' ? item.amount : 0), 0);
-  const hShare = expenses.reduce((sum, item) => sum + item.shareH, 0);
-  const daisyShare = expenses.reduce((sum, item) => sum + item.shareDaisy, 0);
-  const hNet = hPaid - hShare;
-  const daisyNet = daisyPaid - daisyShare;
+  const people = participants.map((name) => {
+    const paid = expenses.reduce((sum, item) => sum + (item.payer === name ? item.amount : 0), 0);
+    const share = expenses.reduce((sum, item) => sum + getExpenseShares(item, participants)[name], 0);
+    return { name, paid, share, net: paid - share };
+  });
 
-  return { expenses, total, hPaid, daisyPaid, hShare, daisyShare, hNet, daisyNet };
+  return { expenses, total, people, participants };
 }
 
 function settlementText(summary) {
   if (summary.expenses.length === 0) return '还没有账单';
-  if (Math.abs(summary.hNet) < 0.01) return '已平账';
-  if (summary.hNet < 0) return `H女士需转 Daisy ¥${formatMoney(Math.abs(summary.hNet))}`;
-  return `Daisy需转 H女士 ¥${formatMoney(summary.hNet)}`;
+  const transfers = settlementTransfers(summary.people);
+  if (transfers.length === 0) return '已平账';
+  const first = transfers[0];
+  return `${first.from}需转 ${first.to} ¥${formatMoney(first.amount)}`;
+}
+
+function settlementTransfers(people) {
+  const debtors = people
+    .filter((person) => person.net < -0.01)
+    .map((person) => ({ name: person.name, amount: -person.net }))
+    .sort((a, b) => b.amount - a.amount);
+  const creditors = people
+    .filter((person) => person.net > 0.01)
+    .map((person) => ({ name: person.name, amount: person.net }))
+    .sort((a, b) => b.amount - a.amount);
+  const transfers = [];
+  let d = 0;
+  let c = 0;
+
+  while (d < debtors.length && c < creditors.length) {
+    const amount = Math.min(debtors[d].amount, creditors[c].amount);
+    if (amount > 0.01) transfers.push({ from: debtors[d].name, to: creditors[c].name, amount });
+    debtors[d].amount -= amount;
+    creditors[c].amount -= amount;
+    if (debtors[d].amount <= 0.01) d += 1;
+    if (creditors[c].amount <= 0.01) c += 1;
+  }
+
+  return transfers;
 }
 
 function renderTrips() {
@@ -283,15 +349,46 @@ function renderDetail() {
     ? `${summary.expenses.length} 笔账单，已自动汇总这个行程`
     : '先用一句话或 OCR 记一笔。';
 
-  els.hNet.textContent = formatMoney(summary.hNet);
-  els.daisyNet.textContent = formatMoney(summary.daisyNet);
-  els.hBreakdown.textContent = `已付 ${formatMoney(summary.hPaid)} / 分摊 ${formatMoney(summary.hShare)}`;
-  els.daisyBreakdown.textContent = `已付 ${formatMoney(summary.daisyPaid)} / 分摊 ${formatMoney(summary.daisyShare)}`;
+  renderParticipantControls(summary.participants);
+  renderBalance(summary);
   els.tripTotal.textContent = `${formatMoney(summary.total)} 元`;
-  els.hTotal.textContent = `${formatMoney(summary.hShare)} 元`;
-  els.daisyTotal.textContent = `${formatMoney(summary.daisyShare)} 元`;
   els.analysisOutput.textContent = buildAnalysisText();
   renderExpenses(summary.expenses);
+}
+
+function renderParticipantControls(participants = getTripParticipants()) {
+  const currentPayer = els.entryPayer.value;
+  els.entryPayer.innerHTML = participants
+    .map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`)
+    .join('');
+  els.entryPayer.value = participants.includes(currentPayer) ? currentPayer : participants[0];
+
+  const currentShares = readShareInputs();
+  els.shareFields.innerHTML = participants.map((name) => `
+    <label>${escapeHtml(name)}分摊
+      <input class="entry-share" data-share-name="${escapeHtml(name)}" type="number" step="0.01" min="0" placeholder="默认均分" value="${currentShares[name] || ''}" />
+    </label>
+  `).join('');
+  els.shareFields.querySelectorAll('.entry-share').forEach((input) => input.addEventListener('input', renderChips));
+}
+
+function renderBalance(summary) {
+  els.balanceStrip.innerHTML = summary.people.map((person) => `
+    <div>
+      <span>${escapeHtml(person.name)}</span>
+      <strong>${formatMoney(person.net)}</strong>
+      <small>已付 ${formatMoney(person.paid)} / 分摊 ${formatMoney(person.share)}</small>
+    </div>
+  `).join('');
+
+  const totalCells = [
+    `<div><span>行程总金额</span><strong id="trip-total">${formatMoney(summary.total)} 元</strong></div>`,
+    ...summary.people.map((person) => (
+      `<div><span>${escapeHtml(person.name)}合计</span><strong>${formatMoney(person.share)} 元</strong></div>`
+    )),
+  ];
+  els.totalRow.innerHTML = totalCells.join('');
+  els.tripTotal = $('trip-total');
 }
 
 function renderExpenses(expenses) {
@@ -317,7 +414,7 @@ function renderExpenses(expenses) {
           </div>
           <span class="money">${formatMoney(expense.amount)} 元</span>
         </div>
-        <p class="expense-meta">${escapeHtml(expense.date || '')} · ${escapeHtml(expense.payer)}付款 · H女士 ${formatMoney(expense.shareH)} / Daisy ${formatMoney(expense.shareDaisy)}</p>
+        <p class="expense-meta">${escapeHtml(expense.date || '')} · ${escapeHtml(expense.payer)}付款 · ${formatShareLine(expense)}</p>
         ${expense.note ? `<p class="expense-meta">${escapeHtml(expense.note)}</p>` : ''}
         <div class="expense-actions">
           <span class="muted">${escapeHtml(sourceLabel(expense.source))}</span>
@@ -334,6 +431,14 @@ function renderExpenses(expenses) {
       renderDetail();
     });
   });
+}
+
+function formatShareLine(expense) {
+  const participants = getTripParticipants(expense.tripId);
+  const shares = getExpenseShares(expense, participants);
+  return participants
+    .map((name) => `${name} ${formatMoney(shares[name])}`)
+    .join(' / ');
 }
 
 function sourceLabel(source) {
@@ -541,6 +646,87 @@ function parsePayer(text) {
   return null;
 }
 
+function regexEscape(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function aliasesForParticipant(name) {
+  const aliases = [name];
+  if (name === 'H女士') aliases.push('h女士', '我');
+  if (/^daisy$/i.test(name)) aliases.push('Daisy女士', 'daisy女士');
+  return [...new Set(aliases.filter(Boolean))];
+}
+
+function parsePayerForParticipants(text, participants) {
+  for (const name of participants) {
+    const aliases = aliasesForParticipant(name).map(regexEscape).join('|');
+    const pattern = new RegExp(`(?:${aliases})\\s*(?:女士)?[^,，;；。]{0,8}(?:付款|支付|付|买单|下单)`, 'i');
+    if (pattern.test(text)) return name;
+  }
+  return parsePayer(text);
+}
+
+function parsePersonAmountForParticipant(text, participant) {
+  const aliases = aliasesForParticipant(participant).map(regexEscape).join('|');
+  const direct = new RegExp(`(?:${aliases})\\s*(?:女士)?\\s*(?:应收|分摊|吃|花|消费|付款|支付|付了?|垫付|凑了?一?件?|凑单|原价|买了?|占)?\\s*(${MONEY_TEXT})`, 'i');
+  const directMatch = text.match(direct);
+  return directMatch ? parseMoneyValue(directMatch[1]) : null;
+}
+
+function sumParticipantAmounts(text, participant, options = {}) {
+  const aliases = aliasesForParticipant(participant);
+  const segments = text.split(/[,，;；。]/).map((item) => item.trim()).filter(Boolean);
+  const totalKeywords = /(?:总金额|合计|共计|总计|订单金额|实际付款|实付|支付金额|付款金额|券后付款|优惠后付款|满减后付款)/;
+  const personalKeywords = /(?:应收|分摊|吃|点|买|买了|花|消费|凑|凑单|原价|一件|商品|饮料|奶茶|小食|门票|车票|房费|酒店)/;
+  const paymentOnly = /(?:付款|支付|付|买单|下单|垫付)/;
+  const totalPayment = /(?:(?:一共|总共|共|合计|总计).{0,6}(?:付款|支付|付)|(?:实际付款|实付|券后付款|优惠后付款|满减后付款))/;
+  let sum = 0;
+
+  for (const segment of segments) {
+    if (!aliases.some((alias) => segment.toLowerCase().includes(alias.toLowerCase()))) continue;
+    if (totalPayment.test(segment)) continue;
+    if (totalKeywords.test(segment) && !personalKeywords.test(segment)) continue;
+    if (paymentOnly.test(segment) && !personalKeywords.test(segment) && !options.treatPaymentAsPersonal) continue;
+
+    const values = moneyValuesInSegment(segment);
+    if (values.length > 0) sum += values.reduce((part, value) => part + value, 0);
+  }
+
+  return sum > 0 ? sum : null;
+}
+
+function parseSemanticSplitForParticipants(text, participants) {
+  const discountContext = /(?:凑单|满减|叠加券|优惠|券后|红包|抵扣|抵|减|实际价格|原价|券前|优惠前)/.test(text);
+  const weights = {};
+  participants.forEach((name) => {
+    const value = sumParticipantAmounts(text, name, { treatPaymentAsPersonal: discountContext });
+    if (value !== null) weights[name] = value;
+  });
+  const weightEntries = Object.entries(weights);
+  if (weightEntries.length < 2) return null;
+
+  const rawTotal = parseRawTotal(text) || weightEntries.reduce((sum, [, value]) => sum + value, 0);
+  const discount = parseDiscountAmount(text);
+  let paidAmount = parseAmount(text);
+
+  if ((paidAmount === null || paidAmount === rawTotal) && rawTotal !== null && discount !== null) {
+    paidAmount = Math.max(0, rawTotal - discount);
+  } else if (paidAmount === null && rawTotal !== null) {
+    paidAmount = rawTotal;
+  }
+
+  if (paidAmount === null) return null;
+
+  const weightTotal = weightEntries.reduce((sum, [, value]) => sum + value, 0);
+  const shouldProrate = discountContext || Math.abs(weightTotal - paidAmount) > 0.01;
+  const shares = {};
+  weightEntries.forEach(([name, value]) => {
+    shares[name] = shouldProrate ? (paidAmount * value) / weightTotal : value;
+  });
+
+  return { amount: paidAmount, shares };
+}
+
 function parseNote(text) {
   const match = text.match(/(?:备注|说明|交易备注)[:： ]*([^;；。]+)/i);
   if (match) return match[1].trim();
@@ -602,16 +788,23 @@ function cleanPurchasedItem(text) {
     .slice(0, 24);
 }
 
-function parseSentence(text) {
+function parseSentence(text, participants = getTripParticipants()) {
   const normalized = normalizeSentence(text);
-  const semantic = parseSemanticSplit(normalized);
+  const semantic = parseSemanticSplitForParticipants(normalized, participants) || parseSemanticSplit(normalized);
   const date = parseDate(normalized);
   const scene = parseScene(normalized);
-  const payer = parsePayer(normalized);
+  const payer = parsePayerForParticipants(normalized, participants);
   const note = parseNote(normalized);
   let amount = semantic?.amount ?? parseAmount(normalized);
-  let shareH = semantic?.shareH ?? parsePersonAmount(normalized, 'H女士');
-  let shareDaisy = semantic?.shareDaisy ?? parsePersonAmount(normalized, 'Daisy');
+  const shares = semantic?.shares ? { ...semantic.shares } : {};
+  participants.forEach((name) => {
+    if (shares[name] === undefined) {
+      const value = parsePersonAmountForParticipant(normalized, name);
+      if (value !== null) shares[name] = value;
+    }
+  });
+  let shareH = shares['H女士'] ?? semantic?.shareH ?? parsePersonAmount(normalized, 'H女士');
+  let shareDaisy = shares.Daisy ?? semantic?.shareDaisy ?? parsePersonAmount(normalized, 'Daisy');
   const usesWeight = /(?:花|消费|凑单|凑了|凑一件|原价|实际价格|叠加券|满减|抵|优惠|券后)/.test(normalized)
     && /(?:券后付款|叠加券后付款|优惠后付款|满减后付款|实付|实际付款|支付金额|付款金额|付款)/.test(normalized);
 
@@ -622,9 +815,14 @@ function parseSentence(text) {
   } else if (!amount && shareH !== null && shareDaisy !== null) {
     amount = shareH + shareDaisy;
   } else if (amount !== null && shareH === null && shareDaisy === null && findArithmeticExpression(normalized)) {
-    shareH = amount / 2;
-    shareDaisy = amount / 2;
+    participants.forEach((name) => {
+      shares[name] = amount / participants.length;
+    });
+    shareH = shares['H女士'] ?? null;
+    shareDaisy = shares.Daisy ?? null;
   }
+  if (participants.includes('H女士') && shareH !== null && shareH !== undefined) shares['H女士'] = shareH;
+  if (participants.includes('Daisy') && shareDaisy !== null && shareDaisy !== undefined) shares.Daisy = shareDaisy;
 
   return {
     date,
@@ -632,6 +830,7 @@ function parseSentence(text) {
     payer,
     note,
     amount,
+    shares,
     shareH,
     shareDaisy,
     description: parseDescription(normalized, scene),
@@ -668,16 +867,27 @@ function parseOcrNote(text) {
 }
 
 function applyParsedFields(fields, source) {
+  const participants = getTripParticipants();
   if (fields.date) els.entryDate.value = fields.date;
   if (fields.scene && SCENES.includes(fields.scene)) els.entryScene.value = fields.scene;
   if (fields.description) els.entryDescription.value = fields.description;
   if (fields.amount !== null && fields.amount !== undefined) els.entryAmount.value = formatMoney(fields.amount);
-  if (fields.payer) els.entryPayer.value = fields.payer;
-  if (fields.shareH !== null && fields.shareH !== undefined) els.entryShareH.value = formatMoney(fields.shareH);
-  if (fields.shareDaisy !== null && fields.shareDaisy !== undefined) els.entryShareDaisy.value = formatMoney(fields.shareDaisy);
+  if (fields.payer && participants.includes(fields.payer)) els.entryPayer.value = fields.payer;
+  const shares = fields.shares || legacySharesFromFields(fields, participants);
+  Object.entries(shares).forEach(([name, value]) => {
+    const input = shareInputFor(name);
+    if (input && value !== null && value !== undefined) input.value = formatMoney(value);
+  });
   if (fields.note) els.entryNote.value = fields.note;
   els.entrySource.value = mergeSource(els.entrySource.value, source);
   renderChips();
+}
+
+function legacySharesFromFields(fields, participants = getTripParticipants()) {
+  const shares = {};
+  if (participants.includes('H女士') && fields.shareH !== null && fields.shareH !== undefined) shares['H女士'] = fields.shareH;
+  if (participants.includes('Daisy') && fields.shareDaisy !== null && fields.shareDaisy !== undefined) shares.Daisy = fields.shareDaisy;
+  return shares;
 }
 
 function mergeSource(current, next) {
@@ -688,13 +898,15 @@ function mergeSource(current, next) {
 }
 
 function renderChips() {
+  const shareChips = Object.entries(readShareInputs())
+    .filter(([, value]) => value !== '')
+    .map(([name, value]) => [name, `${formatMoney(value)}元`]);
   const chips = [
     ['日期', els.entryDate.value],
     ['场景', els.entryScene.value],
     ['总额', els.entryAmount.value ? `${formatMoney(els.entryAmount.value)}元` : ''],
     ['付款', els.entryPayer.value],
-    ['H女士', els.entryShareH.value ? `${formatMoney(els.entryShareH.value)}元` : ''],
-    ['Daisy', els.entryShareDaisy.value ? `${formatMoney(els.entryShareDaisy.value)}元` : ''],
+    ...shareChips,
   ].filter(([, value]) => value);
 
   els.extractedChips.innerHTML = chips.map(([label, value]) => (
@@ -702,22 +914,50 @@ function renderChips() {
   )).join('');
 }
 
-function computeShares(amount, shareHInput, shareDaisyInput) {
-  const total = Number(amount);
-  const h = shareHInput === '' ? null : Number(shareHInput);
-  const daisy = shareDaisyInput === '' ? null : Number(shareDaisyInput);
+function shareInputFor(name) {
+  return els.shareFields.querySelector(`[data-share-name="${cssEscape(name)}"]`);
+}
 
-  if (h === null && daisy === null) return { shareH: total / 2, shareDaisy: total / 2 };
-  if (h === null) return { shareH: Math.max(0, total - daisy), shareDaisy: daisy };
-  if (daisy === null) return { shareH: h, shareDaisy: Math.max(0, total - h) };
-  return { shareH: h, shareDaisy: daisy };
+function readShareInputs() {
+  const shares = {};
+  els.shareFields.querySelectorAll('.entry-share').forEach((input) => {
+    shares[input.dataset.shareName] = input.value;
+  });
+  return shares;
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) return CSS.escape(value);
+  return String(value).replace(/"/g, '\\"');
+}
+
+function computeShares(amount, shareInputs, participants = getTripParticipants()) {
+  const total = Number(amount);
+  const provided = participants
+    .map((name) => ({ name, value: shareInputs[name] === '' || shareInputs[name] === undefined ? null : Number(shareInputs[name]) }));
+  const specifiedTotal = provided.reduce((sum, item) => sum + (item.value === null ? 0 : item.value), 0);
+  const missing = provided.filter((item) => item.value === null);
+  const remaining = Math.max(0, total - specifiedTotal);
+
+  if (missing.length === participants.length) {
+    return participants.reduce((shares, name) => {
+      shares[name] = total / participants.length;
+      return shares;
+    }, {});
+  }
+
+  return provided.reduce((shares, item) => {
+    shares[item.name] = item.value === null ? remaining / missing.length : item.value;
+    return shares;
+  }, {});
 }
 
 function saveExpense(event) {
   event.preventDefault();
   const amount = toNumber(els.entryAmount.value);
-  const shares = computeShares(amount, els.entryShareH.value, els.entryShareDaisy.value);
-  const diff = Math.abs(shares.shareH + shares.shareDaisy - amount);
+  const participants = getTripParticipants();
+  const shares = computeShares(amount, readShareInputs(), participants);
+  const diff = Math.abs(Object.values(shares).reduce((sum, value) => sum + value, 0) - amount);
 
   if (!state.currentTripId) return setMessage('请先进入一个行程。');
   if (!els.entryDate.value || !els.entryDescription.value.trim()) return setMessage('日期和消费物品都要填一下。');
@@ -732,8 +972,9 @@ function saveExpense(event) {
     description: els.entryDescription.value.trim(),
     amount,
     payer: els.entryPayer.value,
-    shareH: Number(formatMoney(shares.shareH)),
-    shareDaisy: Number(formatMoney(shares.shareDaisy)),
+    shares: Object.fromEntries(Object.entries(shares).map(([name, value]) => [name, Number(formatMoney(value))])),
+    shareH: Number(formatMoney(shares['H女士'] || 0)),
+    shareDaisy: Number(formatMoney(shares.Daisy || 0)),
     note: els.entryNote.value.trim(),
     source: els.entrySource.value || 'manual',
     ocrText: els.ocrTextOutput.value.trim(),
@@ -760,7 +1001,7 @@ function resetForm(keepDate = true) {
   els.expenseForm.reset();
   els.entryDate.value = keepDate ? today() : '';
   els.entryScene.value = '外卖';
-  els.entryPayer.value = 'Daisy';
+  renderParticipantControls();
   els.entrySource.value = 'manual';
   els.extractedChips.innerHTML = '';
 }
@@ -770,20 +1011,24 @@ function buildAnalysisText() {
   const summary = summarize();
   if (!trip || summary.expenses.length === 0) return '还没有账单，保存后会生成可发送的分析。';
 
+  const transfers = settlementTransfers(summary.people);
   const lines = [
     `行程：${trip.name}`,
+    `角色：${summary.participants.join('、')}`,
     `总金额：${formatMoney(summary.total)} 元`,
     '',
-    `H女士：已付 ${formatMoney(summary.hPaid)}，分摊 ${formatMoney(summary.hShare)}，净额 ${formatMoney(summary.hNet)}`,
-    `Daisy：已付 ${formatMoney(summary.daisyPaid)}，分摊 ${formatMoney(summary.daisyShare)}，净额 ${formatMoney(summary.daisyNet)}`,
+    ...summary.people.map((person) => (
+      `${person.name}：已付 ${formatMoney(person.paid)}，分摊 ${formatMoney(person.share)}，净额 ${formatMoney(person.net)}`
+    )),
     '',
     `结算：${settlementText(summary)}`,
+    ...transfers.slice(1).map((transfer) => `${transfer.from}需转 ${transfer.to} ¥${formatMoney(transfer.amount)}`),
     '',
     '账单明细：',
   ];
 
   summary.expenses.forEach((expense, index) => {
-    lines.push(`${index + 1}. ${expense.date} ${expense.scene} ${expense.description} ${formatMoney(expense.amount)}元，${expense.payer}付款，H女士${formatMoney(expense.shareH)} / Daisy${formatMoney(expense.shareDaisy)}`);
+    lines.push(`${index + 1}. ${expense.date} ${expense.scene} ${expense.description} ${formatMoney(expense.amount)}元，${expense.payer}付款，${formatShareLine(expense)}`);
   });
 
   return lines.join('\n');
@@ -829,10 +1074,13 @@ function bindEvents() {
   els.createTripButton.addEventListener('click', () => {
     const name = els.newTripName.value.trim();
     if (!name) return;
-    const trip = { id: uid('trip'), name, createdAt: new Date().toISOString() };
+    const trip = { id: uid('trip'), name, participants: getNewTripParticipants(), createdAt: new Date().toISOString() };
     state.trips.unshift(trip);
     state.currentTripId = trip.id;
     els.newTripName.value = '';
+    els.tripRoleInputs.forEach((input) => {
+      input.value = '';
+    });
     saveState();
     openTrip(trip.id);
   });
@@ -860,7 +1108,7 @@ function bindEvents() {
   els.parseSentenceButton.addEventListener('click', () => {
     const text = els.sentenceInput.value.trim();
     if (!text) return setMessage('先输入一句话账单说明。');
-    applyParsedFields(parseSentence(text), 'sentence');
+    applyParsedFields(parseSentence(text, getTripParticipants()), 'sentence');
     setMessage('已从一句话里提取账单分摊。');
   });
 
@@ -901,7 +1149,7 @@ function bindEvents() {
     setMessage('已分析账单文字。');
   });
 
-  [els.entryDate, els.entryScene, els.entryAmount, els.entryPayer, els.entryShareH, els.entryShareDaisy]
+  [els.entryDate, els.entryScene, els.entryAmount, els.entryPayer]
     .forEach((input) => input.addEventListener('input', renderChips));
 
   els.expenseForm.addEventListener('submit', saveExpense);

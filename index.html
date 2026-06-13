@@ -28,6 +28,15 @@
           <input id="new-trip-name" type="text" placeholder="例如：6月8日周末游玩" />
           <button id="create-trip-button" type="button">创建</button>
         </div>
+        <div class="role-builder" aria-label="行程角色">
+          <p class="field-label">行程角色 <span>最多 4 人</span></p>
+          <div class="role-grid">
+            <input id="trip-role-1" type="text" placeholder="昵称 1，例如：H女士" />
+            <input id="trip-role-2" type="text" placeholder="昵称 2，例如：Daisy" />
+            <input id="trip-role-3" type="text" placeholder="昵称 3，可选" />
+            <input id="trip-role-4" type="text" placeholder="昵称 4，可选" />
+          </div>
+        </div>
       </section>
 
       <section class="section-block">
@@ -53,32 +62,13 @@
         <span class="heart-pin" aria-hidden="true">¥</span>
         <h2 id="settlement-title">还没有账单</h2>
         <p id="settlement-subtitle" class="muted">先用一句话或 OCR 记一笔。</p>
-        <div class="balance-strip">
-          <div>
-            <span>H女士</span>
-            <strong id="h-net">0.00</strong>
-            <small id="h-breakdown">已付 0.00 / 分摊 0.00</small>
-          </div>
-          <div>
-            <span>Daisy</span>
-            <strong id="daisy-net">0.00</strong>
-            <small id="daisy-breakdown">已付 0.00 / 分摊 0.00</small>
-          </div>
-        </div>
+        <div id="balance-strip" class="balance-strip"></div>
       </section>
 
-      <section class="total-row">
+      <section id="total-row" class="total-row">
         <div>
           <span>行程总金额</span>
           <strong id="trip-total">0.00 元</strong>
-        </div>
-        <div>
-          <span>H女士合计</span>
-          <strong id="h-total">0.00 元</strong>
-        </div>
-        <div>
-          <span>Daisy合计</span>
-          <strong id="daisy-total">0.00 元</strong>
         </div>
       </section>
 
@@ -147,20 +137,10 @@
               <input id="entry-amount" type="number" step="0.01" min="0" required />
             </label>
             <label>付款人
-              <select id="entry-payer">
-                <option value="Daisy">Daisy</option>
-                <option value="H女士">H女士</option>
-              </select>
+              <select id="entry-payer"></select>
             </label>
           </div>
-          <div class="form-grid two">
-            <label>H女士分摊
-              <input id="entry-share-h" type="number" step="0.01" min="0" placeholder="默认均分" />
-            </label>
-            <label>Daisy分摊
-              <input id="entry-share-daisy" type="number" step="0.01" min="0" placeholder="默认均分" />
-            </label>
-          </div>
+          <div id="share-fields" class="form-grid share-grid"></div>
           <label>交易备注
             <input id="entry-note" type="text" placeholder="例如：Daisy下单，折扣后付款" />
           </label>

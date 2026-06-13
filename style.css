@@ -216,6 +216,30 @@ p {
   gap: 8px;
 }
 
+.role-builder {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.role-builder .field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.role-builder .field-label span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 input,
 select,
 textarea {
@@ -386,8 +410,8 @@ textarea:focus {
 .balance-strip,
 .total-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
   margin-top: 20px;
 }
 
@@ -397,13 +421,9 @@ textarea:focus {
   padding: 12px;
 }
 
-.balance-strip div:first-child {
-  border-right: 1px solid #f0d9df;
-  border-radius: 16px 0 0 16px;
-}
-
-.balance-strip div:last-child {
-  border-radius: 0 16px 16px 0;
+.balance-strip div {
+  border: 1px solid #f0d9df;
+  border-radius: 12px;
 }
 
 .balance-strip span,
@@ -429,7 +449,7 @@ textarea:focus {
 }
 
 .total-row {
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 8px;
   margin: 12px 0 0;
 }
@@ -604,6 +624,10 @@ form label {
 
 .form-grid.two {
   grid-template-columns: 1fr 1fr;
+}
+
+.share-grid {
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
 }
 
 .confirm-form label {
