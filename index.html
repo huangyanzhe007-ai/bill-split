@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sweet Split Sheet</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="phone-shell">
+    <div class="status-bar" aria-hidden="true">
+      <span>9:41</span>
+      <span class="status-icons">▮▮▮  Wi‑Fi  ▰</span>
+    </div>
+    <section id="trip-screen" class="screen">
+      <header class="app-header">
+        <div>
+          <p class="brand-kicker">H女士 & Daisy</p>
+          <h1>Sweet Split Sheet <span class="title-bow">♡</span></h1>
+          <button class="ledger-pill" type="button">甜甜账本⌄</button>
+        </div>
+        <span class="mini-capsule" aria-hidden="true">••  ◎</span>
+      </header>
+
+      <section class="hero-slip">
+        <p class="section-kicker">Sweet sheet</p>
+        <h2>把每一次凑单、约饭和出行，都算得清清楚楚。</h2>
+        <div class="create-trip">
+          <input id="new-trip-name" type="text" placeholder="例如：6月8日周末游玩" />
+          <button id="create-trip-button" type="button">创建</button>
+        </div>
+      </section>
+
+      <section class="section-block">
+        <div class="section-title-row">
+          <h2>行程</h2>
+          <span id="trip-count" class="muted">0 个</span>
+        </div>
+        <div id="trip-list" class="trip-list"></div>
+      </section>
+    </section>
+
+    <section id="detail-screen" class="screen hidden">
+      <header class="detail-header">
+        <button id="back-to-trips" class="icon-button" type="button" aria-label="返回">‹</button>
+        <div>
+          <p class="eyebrow">当前行程</p>
+          <h1 id="current-trip-title">未选择行程</h1>
+        </div>
+        <button id="share-trip-button" class="ghost-button" type="button">分享</button>
+      </header>
+
+      <section class="settlement-card">
+        <span class="heart-pin" aria-hidden="true">¥</span>
+        <p class="section-kicker">Sweet balance</p>
+        <h2 id="settlement-title">还没有账单</h2>
+        <p id="settlement-subtitle" class="muted">先用一句话或 OCR 记一笔。</p>
+        <div class="balance-strip">
+          <div>
+            <span>H女士</span>
+            <strong id="h-net">0.00</strong>
+            <small id="h-breakdown">已付 0.00 / 分摊 0.00</small>
+          </div>
+          <div>
+            <span>Daisy</span>
+            <strong id="daisy-net">0.00</strong>
+            <small id="daisy-breakdown">已付 0.00 / 分摊 0.00</small>
+          </div>
+        </div>
+      </section>
+
+      <section class="total-row">
+        <div>
+          <span>行程总金额</span>
+          <strong id="trip-total">0.00 元</strong>
+        </div>
+        <div>
+          <span>H女士合计</span>
+          <strong id="h-total">0.00 元</strong>
+        </div>
+        <div>
+          <span>Daisy合计</span>
+          <strong id="daisy-total">0.00 元</strong>
+        </div>
+      </section>
+
+      <section class="entry-panel">
+        <div class="mode-tabs" role="tablist" aria-label="记账方式">
+          <button class="mode-tab active" data-mode="sentence" type="button">一句话记账</button>
+          <button class="mode-tab" data-mode="ocr" type="button">OCR识别</button>
+          <button class="mode-tab" data-mode="manual" type="button">手动</button>
+        </div>
+
+        <div id="sentence-mode" class="mode-panel">
+          <label class="field-label" for="sentence-input">一句话记账</label>
+          <textarea id="sentence-input" rows="4" placeholder="例如：凑300-500买衣服活动，Daisy凑了260，H女士凑了300，Daisy女士一共付款360"></textarea>
+          <p class="hint">自动提取总金额、两人应付、消费物品和交易备注。</p>
+          <button id="parse-sentence-button" class="primary-button" type="button">帮我算</button>
+        </div>
+
+        <div id="ocr-mode" class="mode-panel hidden">
+          <label class="field-label" for="ocr-image-input">账单截图</label>
+          <div class="upload-box">
+            <input id="ocr-image-input" type="file" accept="image/*" />
+            <p>上传外卖、支付或团购截图</p>
+            <span>提取日期、场景、金额、消费物品</span>
+          </div>
+          <img id="ocr-preview" class="ocr-preview hidden" alt="账单截图预览" />
+          <button id="ocr-extract-button" class="primary-button secondary-pink" type="button">识别图片</button>
+          <p id="ocr-status" class="hint"></p>
+          <textarea id="ocr-text-output" rows="4" placeholder="OCR 原文会显示在这里，也可以手动粘贴账单文字"></textarea>
+          <button id="analyze-ocr-text-button" class="ghost-wide" type="button">分析这段账单文字</button>
+        </div>
+
+        <div id="manual-mode" class="mode-panel hidden">
+          <p class="hint">直接填写下面的确认字段即可保存。</p>
+        </div>
+
+        <div class="chips" id="extracted-chips"></div>
+
+        <form id="expense-form" class="confirm-form">
+          <div class="result-heading">
+            <span>识别结果 <small>点击可修改</small></span>
+            <button type="button" class="clear-button" onclick="document.getElementById('expense-form').reset();document.getElementById('extracted-chips').innerHTML='';">清空</button>
+          </div>
+          <div class="form-grid two">
+            <label>日期
+              <input id="entry-date" type="date" required />
+            </label>
+            <label>场景
+              <select id="entry-scene">
+                <option value="外卖">外卖</option>
+                <option value="餐饮">餐饮</option>
+                <option value="奶茶">奶茶</option>
+                <option value="交通">交通</option>
+                <option value="住宿">住宿</option>
+                <option value="门票">门票</option>
+                <option value="团购">团购</option>
+                <option value="购物">购物</option>
+                <option value="其他">其他</option>
+              </select>
+            </label>
+          </div>
+          <label>消费物品
+            <input id="entry-description" type="text" placeholder="例如：晚餐外卖 / 酒店 / 门票" required />
+          </label>
+          <div class="form-grid two">
+            <label>总金额
+              <input id="entry-amount" type="number" step="0.01" min="0" required />
+            </label>
+            <label>付款人
+              <select id="entry-payer">
+                <option value="Daisy">Daisy</option>
+                <option value="H女士">H女士</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-grid two">
+            <label>H女士分摊
+              <input id="entry-share-h" type="number" step="0.01" min="0" placeholder="默认均分" />
+            </label>
+            <label>Daisy分摊
+              <input id="entry-share-daisy" type="number" step="0.01" min="0" placeholder="默认均分" />
+            </label>
+          </div>
+          <label>交易备注
+            <input id="entry-note" type="text" placeholder="例如：Daisy下单，折扣后付款" />
+          </label>
+          <input id="entry-source" type="hidden" value="manual" />
+          <button class="save-button" type="submit">保存到当前行程</button>
+          <p id="form-message" class="form-message"></p>
+        </form>
+
+        <div class="upload-strip">
+          <span class="paw-badge">sheet</span>
+          <div>
+            <strong>上传账单截图</strong>
+            <p>外卖 / 团购 / 支付等，自动识别日期、金额、场景</p>
+          </div>
+          <button type="button" onclick="document.querySelector('[data-mode=ocr]').click()">去上传 ›</button>
+        </div>
+      </section>
+
+      <section class="analysis-card">
+        <div class="section-title-row">
+          <h2>行程账单分析</h2>
+          <button id="copy-analysis-button" class="ghost-button" type="button">复制</button>
+        </div>
+        <pre id="analysis-output">还没有账单，保存后会生成可发送的分析。</pre>
+      </section>
+
+      <section class="section-block">
+        <div class="section-title-row">
+          <h2>账单明细</h2>
+          <span id="expense-count" class="muted">0 笔</span>
+        </div>
+        <div id="expense-list" class="expense-list"></div>
+      </section>
+    </section>
+
+    <nav class="bottom-nav" aria-label="底部导航">
+      <button type="button" class="active">⌂<span>首页</span></button>
+      <button type="button">◔<span>统计</span></button>
+      <button type="button" class="nav-add">＋<span>记一笔</span></button>
+      <button type="button">▢<span>账本</span></button>
+      <button type="button">♡<span>我的</span></button>
+    </nav>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
