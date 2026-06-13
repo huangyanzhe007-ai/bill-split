@@ -115,10 +115,6 @@ p {
   text-transform: uppercase;
 }
 
-.title-bow {
-  font-size: 1.05rem;
-}
-
 .ledger-pill {
   min-height: 32px;
   margin-top: 8px;
@@ -204,7 +200,7 @@ p {
 }
 
 .hero-slip::after {
-  content: "Sweet\A Split\A Sheet";
+  content: "bill\A split";
   position: absolute;
   right: 12px;
   top: 12px;
@@ -217,7 +213,7 @@ p {
   border-radius: 8px;
   background: #fff;
   color: var(--pink-dark);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 900;
   line-height: 1.15;
   text-align: center;
@@ -686,7 +682,7 @@ form label {
 }
 
 .paw-badge::before {
-  content: "S";
+  content: "账";
   font-size: 1rem;
   font-weight: 900;
 }
