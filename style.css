@@ -115,18 +115,6 @@ p {
   text-transform: uppercase;
 }
 
-.ledger-pill {
-  min-height: 32px;
-  margin-top: 8px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: var(--cream);
-  color: #9a4d5f;
-  font-size: 0.86rem;
-  font-weight: 800;
-  border: 1px solid rgba(235, 179, 128, 0.45);
-}
-
 .mini-capsule {
   display: inline-flex;
   align-items: center;
