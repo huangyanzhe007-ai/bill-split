@@ -309,7 +309,10 @@ function renderTrips() {
       </div>
       <div class="trip-top">
         <span class="muted">${settlementText(summary)}</span>
-        <button class="ghost-button" type="button" data-open-trip="${trip.id}">进入</button>
+        <div class="trip-actions">
+          <button class="ghost-button" type="button" data-open-trip="${trip.id}">进入</button>
+          <button class="danger-button" type="button" data-delete-trip="${trip.id}">删除</button>
+        </div>
       </div>
     `;
     els.tripList.appendChild(item);
@@ -318,6 +321,28 @@ function renderTrips() {
   els.tripList.querySelectorAll('[data-open-trip]').forEach((button) => {
     button.addEventListener('click', () => openTrip(button.dataset.openTrip));
   });
+
+  els.tripList.querySelectorAll('[data-delete-trip]').forEach((button) => {
+    button.addEventListener('click', () => deleteTrip(button.dataset.deleteTrip));
+  });
+}
+
+function deleteTrip(tripId) {
+  const trip = state.trips.find((item) => item.id === tripId);
+  if (!trip) return;
+  const expenseCount = state.expenses.filter((expense) => expense.tripId === tripId).length;
+  const message = expenseCount
+    ? `确定删除「${trip.name}」吗？这个行程下的 ${expenseCount} 笔账单也会一起删除。`
+    : `确定删除「${trip.name}」吗？`;
+  if (!window.confirm(message)) return;
+
+  state.trips = state.trips.filter((item) => item.id !== tripId);
+  state.expenses = state.expenses.filter((expense) => expense.tripId !== tripId);
+  if (state.currentTripId === tripId) {
+    state.currentTripId = state.trips[0]?.id || null;
+  }
+  saveState();
+  renderTrips();
 }
 
 function openTrip(tripId) {

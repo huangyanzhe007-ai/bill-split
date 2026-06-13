@@ -292,6 +292,13 @@ textarea:focus {
   margin-top: 12px;
 }
 
+.trip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .trip-item,
 .expense-item {
   display: grid;
